@@ -60,6 +60,20 @@ Our proprietary **Scoring & Ranking System** evaluates wallets on:
 
 ---
 
+## 🌐 Frontend (GitHub Pages)
+
+**Live URL:** https://ngenoamos.github.io/Synapse/
+
+The frontend is a minimalist wallet scanner built with Tailwind CSS:
+- ✅ Single input field for wallet address
+- ✅ Chain selection (Ethereum/BSC)
+- ✅ One button to scan
+- ✅ Results display with SRS score, balance, risk level
+- ✅ Responsive design
+
+**Technology:** HTML5 + Tailwind CSS + Vanilla JavaScript
+**Backend API:** https://web-production-22abf.up.railway.app
+
 ## 🛠️ Tech Stack
 
 ```yaml
