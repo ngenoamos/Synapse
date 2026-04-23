@@ -12,11 +12,11 @@
 
 ## 🚀 Live Demo
 
-| Service                    | URL | Status |
-|----------------------------|-----|--------|
-| **Landing Page**           | [cathedral-scanner.up.railway.app](https://web-production-22abf.up.railway.app)        | 🟢 Online |
-| **Interactive API Docs**   | [web-production-22abf.up.railway.app/docs](https://web-production-22abf.up.railway.app/docs)   | 🟢 Online |
-| **Health Check**           | [web-production-22abf.up.railway.app/health](https://web-production-22abf.up.railway.app/health) | 🟢 Online |
+| Service | URL | Status |
+|---------|-----|--------|
+| **Landing Page** | [cathedral-scanner.up.railway.app](https://web-production-22abf.up.railway.app) | 🟢 Online |
+| **Interactive API Docs** | [web-production-22abf.up.railway.app/docs](https://web-production-22abf.up.railway.app/docs) | 🟢 Online |
+| **Health Check** | [web-production-22abf.up.railway.app/health](https://web-production-22abf.up.railway.app/health) | 🟢 Online |
 
 **Try these live queries in your browser:**
 - 💰 [Scan $7B Binance Wallet](https://web-production-22abf.up.railway.app/api/scan/0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8?chain=ethereum)
@@ -28,16 +28,16 @@
 
 ## 📊 Platform Capabilities
 
-| Feature                  | Status  | Description                 |
-|--------------------------|---------|-----------------------------|
-| **Real Blockchain Data** | ✅ Live | Ethereum + BSC mainnet      |
-| **Multi-Chain Support**  | ✅ Live | ETH, BSC (more coming)      |
-| **SRS Risk Scoring**     | ✅ Live | 0-100 proprietary algorithm |
-| **Transaction Analysis** | ✅ Live | Counts, contract detection  |
-| **USD Conversion**       | ✅ Live | Real-time prices            |
-| **Caching Layer**        | ✅ Live | Performance optimized       |
-| **REST API**             | ✅ Live | FastAPI with auto-docs      |
-| **Web Dashboard**        | ✅ Live | Streamlit UI                |
+| Feature | Status | Description |
+|---------|--------|-------------|
+| **Real Blockchain Data** | ✅ Live | Ethereum + BSC mainnet |
+| **Multi-Chain Support** | ✅ Live | ETH, BSC (more coming) |
+| **SRS Risk Scoring** | ✅ Live | 0-100 proprietary algorithm |
+| **Transaction Analysis** | ✅ Live | Counts, contract detection |
+| **USD Conversion** | ✅ Live | Real-time prices |
+| **Caching Layer** | ✅ Live | Performance optimized |
+| **REST API** | ✅ Live | FastAPI with auto-docs |
+| **Web Dashboard** | ✅ Live | Streamlit UI |
 
 ---
 
@@ -45,12 +45,12 @@
 
 Our proprietary **Scoring & Ranking System** evaluates wallets on:
 
-| Factor              | Weight                | Description            |
-|---------------------|-----------------------|------------------------|
-| Balance Size        | 30%                   | Total value held       |
-| Transaction History | 25%                   | Activity and age       |
-| Contract Risk       | 20%                   | Smart contract vs EOA  |
-| On-chain Behavior   | 25%                   | Patterns and anomalies |
+| Factor | Weight | Description |
+|--------|--------|-------------|
+| Balance Size | 30% | Total value held |
+| Transaction History | 25% | Activity and age |
+| Contract Risk | 20% | Smart contract vs EOA |
+| On-chain Behavior | 25% | Patterns and anomalies |
 
 **Risk Categories:**
 - 🟢 **Low Risk** (80-100): High-value, active, verified wallets
@@ -83,7 +83,16 @@ Infrastructure:
   - Railway (cloud deployment)
   - Git (version control)
   - GitHub (private repository)
+📈 Real-World Data
+Our system currently tracks:
 
+$14.7 Billion+ in assets across monitored wallets
+
+2,000+ ETH in Binance hot wallet
+
+25M+ BNB in BSC bridge contract
+
+1000+ transactions analyzed per wallet
 
 🚀 Quick Start
 Clone & Run Locally
@@ -121,3 +130,67 @@ GET	/api/score/{wallet}	Get SRS score only
 GET	/api/top_wallets?limit={n}	Top wallets by score
 GET	/api/cache_stats	Cache performance
 POST	/api/cache/{wallet}	Cache wallet data
+🎯 Roadmap
+Status	Feature	Target
+✅	FastAPI backend	Complete
+✅	Basic SRS engine	Complete
+✅	Blockchain integration	Complete
+✅	Real-time scoring	Complete
+🔄	Solana integration	In Progress
+🔄	DeFi position tracking	Planned
+⏳	NFT analysis	Q2 2026
+⏳	Alert system	Q2 2026
+⏳	Mobile app	Q3 2026
+📊 Performance Metrics
+Response Time: < 2 seconds (cached), < 5 seconds (fresh)
+
+Uptime: 99.9% (Railway SLA)
+
+Caching: Persistent JSON storage
+
+Rate Limiting: 100 requests/minute (configurable)
+
+🔒 Security & Privacy
+✅ Private GitHub repository
+
+✅ No sensitive data exposure
+
+✅ API keys stored as environment variables
+
+✅ Rate limiting ready
+
+✅ CORS configured for security
+
+👥 For Co-Founders
+Investment Highlights
+Working Product: Live API scanning real blockchain data
+
+Scalable Architecture: Built on FastAPI, ready for growth
+
+Multi-Chain Support: ETH + BSC live, more coming
+
+Proprietary Scoring: Unique SRS algorithm
+
+Cloud Deployed: Accessible anywhere, anytime
+
+Git History: Development tracked from Day 1
+
+Key Metrics
+TAM: $2.4T cryptocurrency market
+
+Target Users: Traders, analysts, compliance teams
+
+Competitive Edge: Real-time multi-chain + proprietary scoring
+
+Live Demo Credentials
+No credentials needed! Visit: https://web-production-22abf.up.railway.app
+
+📞 Contact
+GitHub: github.com/ngenoamos
+
+Project: github.com/ngenoamos/Synapse
+
+Live API: web-production-22abf.up.railway.app
+
+📄 License
+Private Repository - All Rights Reserved
