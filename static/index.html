@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cathedral Scanner - Blockchain Analytics Platform</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 50px;
+        }
+        h1 {
+            font-size: 3.5em;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        .card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+        .endpoint {
+            background: #f5f5f5;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            border-left: 4px solid #667eea;
+        }
+        .endpoint a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        .endpoint a:hover {
+            text-decoration: underline;
+        }
+        .demo-box {
+            background: #1a1a2e;
+            color: #0f0;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: monospace;
+            margin-top: 15px;
+            overflow-x: auto;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #5a67d8;
+        }
+        input, select {
+            padding: 10px;
+            margin: 10px 10px 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏛️ Cathedral Scanner</h1>
+            <p class="subtitle">Enterprise-Grade Blockchain Analytics Platform</p>
+            <p class="subtitle">Real-time Wallet Scanning & Risk Assessment</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number">2</div>
+                <div>Blockchains</div>
+                <small>Ethereum • BSC</small>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">$14.7B+</div>
+                <div>Assets Tracked</div>
+                <small>Real-time balances</small>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">100%</div>
+                <div>Real Data</div>
+                <small>Live blockchain queries</small>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🔍 Live Wallet Scanner</h2>
+            <input type="text" id="wallet" placeholder="Enter wallet address (0x...)" size="50" value="0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8">
+            <select id="chain">
+                <option value="ethereum">Ethereum</option>
+                <option value="bsc">Binance Smart Chain (BSC)</option>
+            </select>
+            <button onclick="scanWallet()">Scan Wallet</button>
+            <div id="result" class="demo-box">
+                <span id="result-text">Ready to scan...</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📡 API Endpoints</h2>
+            <div class="endpoint">
+                <strong>GET</strong> <a href="/">/</a> - API information
+            </div>
+            <div class="endpoint">
+                <strong>GET</strong> <a href="/health">/health</a> - Health check
+            </div>
+            <div class="endpoint">
+                <strong>GET</strong> <a href="/docs">/docs</a> - Interactive API documentation
+            </div>
+            <div class="endpoint">
+                <strong>GET</strong> /api/scan/{wallet}?chain={chain} - Scan wallet address
+            </div>
+            <div class="endpoint">
+                <strong>GET</strong> /api/top_wallets?limit={n} - Get top wallets by SRS score
+            </div>
+            <div class="endpoint">
+                <strong>GET</strong> /api/cache_stats - View cache statistics
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🚀 Quick Demo Links</h2>
+            <p>Click any link to see live data:</p>
+            <div class="endpoint">
+                🔗 <a href="/api/scan/0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8?chain=ethereum" target="_blank">
+                    Binance Hot Wallet ($7 Billion in ETH)
+                </a>
+            </div>
+            <div class="endpoint">
+                🔗 <a href="/api/scan/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045?chain=ethereum" target="_blank">
+                    Vitalik Buterin (Ethereum Co-founder)
+                </a>
+            </div>
+            <div class="endpoint">
+                🔗 <a href="/api/scan/0x0000000000000000000000000000000000001004?chain=bsc" target="_blank">
+                    BNB Bridge ($7.8 Billion in BNB)
+                </a>
+            </div>
+            <div class="endpoint">
+                🔗 <a href="/api/top_wallets?limit=10" target="_blank">
+                    Top 10 Wallets by SRS Score
+                </a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>💡 What is SRS Score?</h2>
+            <p><strong>SRS (Scoring & Ranking System)</strong> evaluates wallet risk based on:</p>
+            <ul>
+                <li>💰 Balance size and transaction volume</li>
+                <li>📊 Transaction count and activity patterns</li>
+                <li>🔐 Contract vs EOA (externally owned account)</li>
+                <li>⭐ Historical on-chain behavior</li>
+            </ul>
+            <p><strong>Score Range:</strong> 0-100 (Higher = Lower Risk)</p>
+            <p>✅ 80-100: Low Risk | ⚠️ 50-79: Medium Risk | 🔴 0-49: High Risk</p>
+        </div>
+
+        <div class="card" style="text-align: center; background: #667eea; color: white;">
+            <h3>🎯 Production Ready</h3>
+            <p>✓ Python 3.11 • FastAPI • Web3.py • Real Blockchain Data • Multi-chain Support • Cloud Deployed</p>
+            <p style="margin-top: 20px;">
+                <a href="https://github.com/ngenoamos/Synapse" style="color: white; text-decoration: underline;">Private GitHub Repository</a> | 
+                <a href="/docs" style="color: white; text-decoration: underline;">API Documentation</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        async function scanWallet() {
+            const wallet = document.getElementById('wallet').value;
+            const chain = document.getElementById('chain').value;
+            const resultDiv = document.getElementById('result-text');
+            
+            resultDiv.innerHTML = '🔄 Scanning blockchain...';
+            
+            try {
+                const response = await fetch(`/api/scan/${wallet}?chain=${chain}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    resultDiv.innerHTML = `❌ Error: ${data.error}`;
+                } else {
+                    const balanceKey = data.chain === 'ethereum' ? 'balance_eth' : 'balance_bnb';
+                    const balance = data.wallet_data[balanceKey] || 0;
+                    const usdBalance = data.wallet_data.balance_usd || 0;
+                    
+                    resultDiv.innerHTML = `
+                        <strong>✅ Wallet Scanned Successfully!</strong><br><br>
+                        📊 <strong>SRS Score:</strong> ${data.srs_score}/100 (${data.risk_level})<br>
+                        💰 <strong>Balance:</strong> ${balance.toLocaleString()} ${chain === 'ethereum' ? 'ETH' : 'BNB'}<br>
+                        💵 <strong>USD Value:</strong> $${usdBalance.toLocaleString()}<br>
+                        🔗 <strong>Chain:</strong> ${data.chain}<br>
+                        📅 <strong>Timestamp:</strong> ${new Date(data.timestamp).toLocaleString()}<br>
+                        ${data.wallet_data.transaction_count ? `📝 <strong>Transactions:</strong> ${data.wallet_data.transaction_count}<br>` : ''}
+                        ${data.wallet_data.is_contract !== undefined ? `🔧 <strong>Is Contract:</strong> ${data.wallet_data.is_contract}<br>` : ''}
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `❌ Error: ${error.message}`;
+            }
+        }
+        
+        // Auto-scan on page load
+        scanWallet();
+    </script>
+</body>
+</html>
