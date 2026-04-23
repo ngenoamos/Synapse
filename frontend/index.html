@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cathedral Scanner - Blockchain Wallet Analyzer</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Custom font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen">
+    <div class="container mx-auto px-4 py-16">
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <h1 class="text-5xl font-bold text-white mb-4">
+                🏛️ Cathedral Scanner
+            </h1>
+            <p class="text-xl text-white opacity-90">
+                Enterprise-Grade Blockchain Analytics
+            </p>
+        </div>
+
+        <!-- Main Card -->
+        <div class="max-w-2xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <div class="p-8">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-2">
+                    Wallet Scanner
+                </h2>
+                <p class="text-gray-600 mb-6">
+                    Enter any Ethereum or BSC wallet address to analyze risk scores and transaction data
+                </p>
+
+                <!-- Input Field -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Wallet Address
+                    </label>
+                    <input type="text" 
+                           id="walletAddress" 
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                           placeholder="0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8"
+                           value="0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8">
+                </div>
+
+                <!-- Chain Selection -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Blockchain
+                    </label>
+                    <select id="chain" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                        <option value="ethereum">Ethereum (ETH)</option>
+                        <option value="bsc">Binance Smart Chain (BNB)</option>
+                    </select>
+                </div>
+
+                <!-- Button -->
+                <button id="scanButton" 
+                        class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold py-3 px-6 rounded-lg hover:from-purple-700 hover:to-indigo-700 transition transform hover:scale-105">
+                    🔍 Scan Wallet
+                </button>
+
+                <!-- Results Div -->
+                <div id="results" class="mt-8 hidden">
+                    <div class="border-t border-gray-200 pt-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Scan Results</h3>
+                        <div id="resultsContent" class="space-y-3">
+                            <!-- Results will appear here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loading State -->
+                <div id="loading" class="mt-8 hidden text-center">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                    <p class="mt-2 text-gray-600">Scanning blockchain...</p>
+                </div>
+
+                <!-- Error State -->
+                <div id="error" class="mt-8 hidden">
+                    <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                        <strong>Error:</strong> <span id="errorMessage"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Status -->
+        <div class="max-w-2xl mx-auto mt-8 text-center text-white opacity-75 text-sm">
+            <p>Powered by Cathedral Scanner API | Real blockchain data</p>
+            <p class="mt-1">
+                <a href="https://web-production-22abf.up.railway.app/docs" target="_blank" class="underline">API Documentation</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://web-production-22abf.up.railway.app';
+        
+        async function scanWallet() {
+            const wallet = document.getElementById('walletAddress').value;
+            const chain = document.getElementById('chain').value;
+            
+            // Validate wallet address
+            if (!wallet || wallet.length < 10) {
+                showError('Please enter a valid wallet address');
+                return;
+            }
+            
+            // Hide previous results and show loading
+            document.getElementById('results').classList.add('hidden');
+            document.getElementById('error').classList.add('hidden');
+            document.getElementById('loading').classList.remove('hidden');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/scan/${wallet}?chain=${chain}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    showError(data.error);
+                } else {
+                    displayResults(data, chain);
+                }
+            } catch (error) {
+                showError('Failed to connect to API. Please try again.');
+                console.error('Error:', error);
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }
+        
+        function displayResults(data, chain) {
+            const resultsContent = document.getElementById('resultsContent');
+            const walletData = data.wallet_data;
+            const balanceKey = chain === 'ethereum' ? 'balance_eth' : 'balance_bnb';
+            const balance = walletData[balanceKey] || 0;
+            const usdBalance = walletData.balance_usd || 0;
+            
+            // Determine score color
+            let scoreColor = 'text-red-600';
+            if (data.srs_score >= 80) scoreColor = 'text-green-600';
+            else if (data.srs_score >= 50) scoreColor = 'text-yellow-600';
+            
+            resultsContent.innerHTML = `
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-sm text-gray-600">Wallet Address</p>
+                            <p class="font-mono text-sm font-semibold truncate">${data.wallet}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600">Chain</p>
+                            <p class="font-semibold">${chain.toUpperCase()}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600">SRS Score</p>
+                            <p class="text-2xl font-bold ${scoreColor}">${data.srs_score}/100</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600">Risk Level</p>
+                            <p class="font-semibold">${data.risk_level}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600">Balance</p>
+                            <p class="font-semibold">${balance.toLocaleString()} ${chain === 'ethereum' ? 'ETH' : 'BNB'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600">USD Value</p>
+                            <p class="font-semibold">$${usdBalance.toLocaleString()}</p>
+                        </div>
+                        ${walletData.transaction_count ? `
+                        <div>
+                            <p class="text-sm text-gray-600">Transactions</p>
+                            <p class="font-semibold">${walletData.transaction_count}</p>
+                        </div>
+                        ` : ''}
+                        ${walletData.is_contract !== undefined ? `
+                        <div>
+                            <p class="text-sm text-gray-600">Type</p>
+                            <p class="font-semibold">${walletData.is_contract ? 'Smart Contract' : 'EOA (Wallet)'}</p>
+                        </div>
+                        ` : ''}
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-200">
+                        <p class="text-xs text-gray-500">Last scanned: ${new Date(data.timestamp).toLocaleString()}</p>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('results').classList.remove('hidden');
+        }
+        
+        function showError(message) {
+            document.getElementById('errorMessage').innerText = message;
+            document.getElementById('error').classList.remove('hidden');
+        }
+        
+        // Add event listener to button
+        document.getElementById('scanButton').addEventListener('click', scanWallet);
+        
+        // Allow Enter key to trigger scan
+        document.getElementById('walletAddress').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                scanWallet();
+            }
+        });
+        
+        // Auto-scan on page load with default wallet
+        setTimeout(() => {
+            scanWallet();
+        }, 500);
+    </script>
+</body>
+</html>
