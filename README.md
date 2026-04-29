@@ -99,12 +99,16 @@ Infrastructure:
   - Render.com (cloud deployment)
   - GitHub (private repository)
   - GitHub Pages (frontend hosting)
-📈 Real-World Test Results
-Wallet	Qualifying TXs	H_timing	Zone	SRS Score
-Binance Hot Wallet	70	2.94 bits	Grey	89.26
-Vitalik Buterin	16	2.78 bits	Grey	N/A*
-Low-activity wallet	3	N/A	Failed	0 (liveness gate)
-Vitalik's wallet is a contract, limiting qualifying transactions
+  
+## 📈 Real-World Test Results
+
+| Wallet | Qualifying TXs | H_timing | Zone | SRS Score |
+|--------|---------------|----------|------|-----------|
+| Binance Hot Wallet | 70 | 2.94 bits | Grey | 89.26 |
+| Vitalik Buterin | 16 | 2.78 bits | Grey | N/A* |
+| Low-activity wallet | 3 | N/A | Failed | 0 (liveness gate) |
+
+*Vitalik's wallet is a contract, limiting qualifying transactions
 
 🚀 Quick Start
 Clone & Run Locally
