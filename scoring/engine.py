@@ -1,11 +1,14 @@
 import json
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 import requests
+from scoring.entropy import EntropyCalculator
 from web3 import Web3
 import os
+import math
 import asyncio
+from .fetcher import CovalentFetcher
 
 class SRSEngine:
     """Real SRS Engine with blockchain integration"""
@@ -15,6 +18,9 @@ class SRSEngine:
         self.data_dir.mkdir(exist_ok=True)
         self.cache: Dict[str, Any] = {}
         self._load_cache()
+
+        # Initialize Covalent fetcher
+        self.fetcher = CovalentFetcher()
         
         # Blockchain providers
         self.eth_provider = "https://cloudflare-eth.com"
@@ -37,6 +43,345 @@ class SRSEngine:
             "cached_at": datetime.utcnow().isoformat()
         }
         self._save_cache()
+
+    def get_transaction_history(self, wallet_address: str, chain: str = "ethereum") -> Optional[List[Dict]]:
+        """
+        NEW METHOD: Fetch full transaction history using Covalent
+        This is what you were missing!
+        """
+        # Map chain names to Covalent format
+        chain_map = {
+            "ethereum": "eth-mainnet",
+            "bsc": "bsc-mainnet"
+        }
+        covalent_chain = chain_map.get(chain, "eth-mainnet")
+        
+        # Use your fetcher to get transactions
+        transactions = self.fetcher.get_transactions_last_180_days(wallet_address, covalent_chain)
+        
+        if transactions:
+            # Cache the transaction history
+            cache_key = f"history_{wallet_address}_{chain}"
+            self.cache[cache_key] = {
+                "transactions": transactions,
+                "count": len(transactions),
+                "fetched_at": datetime.utcnow().isoformat()
+            }
+            self._save_cache()
+        
+        return transactions
+    
+    def analyze_behavioral_entropy(self, wallet_address: str, chain: str = "ethereum") -> Dict[str, Any]:
+        """
+        Calculate Shannon entropy from transaction timing with proper filtering.
+        Filters out: self-transfers, zero-value transactions, and token approvals.
+
+        Liveness Gate: Minimum 50 qualifying transactions required.
+        """
+        # Get transaction history
+        transactions = self.get_transaction_history(wallet_address, chain)
+        
+        if not transactions:
+            return {
+                "error": "No transaction history found",
+                "wallet": wallet_address,
+                "suggestion": "Try a wallet with more activity",
+                "srs_score": 0,
+                "liveness_gate": "FAILED"
+            }
+        
+        # Extract hours from timestamps with filtering
+        hours = []
+        total_sent = 0
+        total_received = 0
+        qualifying_count = 0
+        filtered_self = 0
+        filtered_zero = 0
+        filtered_approval = 0
+        
+        wallet_lower = wallet_address.lower()
+        
+        for tx in transactions:
+            # Get addresses safely
+            from_addr = tx.get("from_address") or ""
+            to_addr = tx.get("to_address") or ""
+            
+            # Convert to lowercase
+            if from_addr:
+                from_addr = from_addr.lower()
+            if to_addr:
+                to_addr = to_addr.lower()
+            
+            # FILTER 1: Skip self-transfers
+            if from_addr == wallet_lower and to_addr == wallet_lower:
+                filtered_self += 1
+                continue
+            
+            # Get transaction value
+            try:
+                value = float(tx.get("value", "0")) / 1e18
+            except:
+                value = 0
+            
+            # FILTER 2: Skip zero-value transactions
+            if value == 0:
+                if self._is_token_approval(tx):
+                    filtered_approval += 1
+                    continue
+                filtered_zero += 1
+                continue
+            
+            # This is a qualifying transaction
+            qualifying_count += 1
+            
+            # Get timestamp for entropy
+            block_time = tx.get("block_signed_at")
+            if block_time:
+                try:
+                    dt = datetime.fromisoformat(block_time.replace('Z', '+00:00'))
+                    hours.append(dt.hour)
+                except:
+                    pass
+            
+            # Track sent/received
+            if from_addr == wallet_lower:
+                total_sent += value
+            if to_addr == wallet_lower:
+                total_received += value
+        
+        # Debug output
+        print(f"🔍 Transactions: {len(transactions)} total")
+        print(f"   ├─ Self-transfers filtered: {filtered_self}")
+        print(f"   ├─ Zero-value filtered: {filtered_zero}")
+        print(f"   ├─ Token approvals filtered: {filtered_approval}")
+        print(f"   └─ Qualifying: {qualifying_count}")
+        
+        # LIVENESS GATE: Minimum 50 qualifying transactions (per spec)
+        MIN_QUALIFYING_TXS = 50
+        
+        if qualifying_count < MIN_QUALIFYING_TXS:
+            return {
+                "error": f"Insufficient qualifying transactions. Liveness gate requires {MIN_QUALIFYING_TXS}+ transactions.",
+                "wallet": wallet_address,
+                "chain": chain,
+                "qualifying_transactions": qualifying_count,
+                "minimum_required": MIN_QUALIFYING_TXS,
+                "srs_score": 0,
+                "liveness_gate": "FAILED",
+                "reason": "Wallet does not meet minimum transaction activity threshold",
+                "stats": {
+                    "total_transactions": len(transactions),
+                    "self_transfers": filtered_self,
+                    "zero_value": filtered_zero,
+                    "token_approvals": filtered_approval,
+                    "qualifying": qualifying_count
+                }
+            }
+        
+        # Check if we have qualifying transactions
+        if not hours:
+            return {
+                "error": "No qualifying transactions found in the last 180 days",
+                "wallet": wallet_address,
+                "suggestion": "Try a wallet with more activity",
+                "stats": {
+                    "total_transactions": len(transactions),
+                    "self_transfers": filtered_self,
+                    "zero_value": filtered_zero,
+                    "token_approvals": filtered_approval,
+                    "qualifying": 0
+                }
+            }
+        
+        # Calculate H_timing using EntropyCalculator
+        from .entropy import EntropyCalculator
+        from collections import Counter
+        
+        h_timing_result = EntropyCalculator.get_h_timing_from_hours(hours)
+        hour_counts = Counter(hours)
+        
+        # Print hour distribution to console
+        print("\n📊 Hour Distribution (24 buckets):")
+        for hour in range(24):
+            count = hour_counts.get(hour, 0)
+            if count > 0:
+                bar = "█" * min(count, 50)
+                print(f"   Hour {hour:2d}: {bar} ({count} transactions)")
+        print(f"\n📈 H_timing: {h_timing_result['entropy_bits']} bits ({h_timing_result['zone']} zone)\n")
+        
+        return {
+            "wallet": wallet_address,
+            "chain": chain,
+            "behavioral_entropy": h_timing_result,
+            "transaction_analysis": {
+                "total_transactions_analyzed": len(transactions),
+                "qualifying_transactions": qualifying_count,
+                "filters_applied": {
+                    "self_transfers_removed": filtered_self,
+                    "zero_value_removed": filtered_zero,
+                    "token_approvals_removed": filtered_approval
+                },
+                "hour_distribution": {
+                    str(hour): hour_counts.get(hour, 0) 
+                    for hour in range(24)
+                },
+                "unique_hours": len(set(hours)),
+                "total_sent_eth": round(total_sent, 6),
+                "total_received_eth": round(total_received, 6),
+                "net_flow_eth": round(total_received - total_sent, 6)
+            },
+            "period_days": 180,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    
+    def calculate_complete_srs(
+        self, 
+        wallet_address: str, 
+        chain: str = "ethereum"
+    ) -> Dict[str, Any]:
+        """
+        Complete SRS Score with all three pillars.
+        
+        Returns H_timing, H_gas, H_diversity, and H_combined.
+        
+        Liveness Gate: Minimum 50 qualifying transactions required.
+        If liveness gate fails, returns SRS = 0.
+        """
+        MIN_QUALIFYING_TXS = 50
+        
+        # Step 1: Get behavioral entropy (timing)
+        timing_result = self.analyze_behavioral_entropy(wallet_address, chain)
+        
+        # Check liveness gate
+        if timing_result.get("error") and "Insufficient" in timing_result.get("error", ""):
+            return {
+                "wallet": wallet_address,
+                "chain": chain,
+                "srs_score": 0,
+                "h_timing": 0,
+                "h_gas": 0,
+                "h_diversity": 0,
+                "h_combined": 0,
+                "liveness_gate": "FAILED",
+                "message": f"Wallet has insufficient activity. Need {MIN_QUALIFYING_TXS}+ qualifying transactions.",
+                "qualifying_transactions": timing_result.get("qualifying_transactions", 0)
+            }
+        
+        # Get H_timing (extract from timing_result)
+        h_timing = timing_result.get("behavioral_entropy", {}).get("entropy_bits", 0)
+        
+        # Step 2: Calculate H_gas (Pillar 2 - to be implemented)
+        # For now, return placeholder
+        h_gas = self._calculate_gas_entropy(wallet_address, chain) if hasattr(self, '_calculate_gas_entropy') else 0
+        
+        # Step 3: Calculate H_diversity (Pillar 3 - to be implemented)
+        # For now, return placeholder
+        h_diversity = self._calculate_diversity_entropy(wallet_address, chain) if hasattr(self, '_calculate_diversity_entropy') else 0
+        
+        # Step 4: Calculate combined score (0.35 × H_timing + 0.30 × H_gas + 0.35 × H_diversity)
+        weights = {
+            "timing": 0.35,
+            "gas": 0.30,
+            "diversity": 0.35
+        }
+        
+        h_combined = (
+            weights["timing"] * h_timing +
+            weights["gas"] * h_gas +
+            weights["diversity"] * h_diversity
+        )
+        
+        # Normalize H_combined to 0-100 scale for SRS score
+        max_entropy = math.log2(24)  # ~4.585 bits
+        srs_score = (h_combined / max_entropy) * 100 if h_combined > 0 else 0
+        srs_score = min(100, max(0, srs_score))
+        
+        return {
+            "wallet": wallet_address,
+            "chain": chain,
+            "srs_score": round(srs_score, 2),
+            "h_timing": round(h_timing, 4),
+            "h_gas": round(h_gas, 4),
+            "h_diversity": round(h_diversity, 4),
+            "h_combined": round(h_combined, 4),
+            "weights": weights,
+            "liveness_gate": "PASSED",
+            "qualifying_transactions": timing_result.get("transaction_analysis", {}).get("qualifying_transactions", 0),
+            "pillar_status": {
+                "pillar_1_timing": "complete",
+                "pillar_2_gas": "pending_implementation",
+                "pillar_3_diversity": "pending_implementation"
+            }
+        }
+
+    # Placeholder methods for Pillars 2 and 3
+    def _calculate_gas_entropy(self, wallet_address: str, chain: str = "ethereum") -> float:
+        """Pillar 2: Gas entropy - to be implemented in Week 3"""
+        # TODO: Implement gas percentile entropy
+        return 0.0
+
+    def _calculate_diversity_entropy(self, wallet_address: str, chain: str = "ethereum") -> float:
+        """Pillar 3: Protocol diversity entropy - to be implemented in Week 3"""
+        # TODO: Implement protocol diversity entropy
+        return 0.0
+    
+    def _is_token_approval(self, tx: Dict) -> bool:
+        """
+        Check if a transaction is a token approval (ERC-20 approve method)
+        """
+        # Check method_id for approve() function (0x095ea7b3)
+        method_id = tx.get("method_id", "")
+        if method_id and method_id.lower() == "0x095ea7b3":
+            return True
+        
+        # Check logs for Approval event
+        log_events = tx.get("log_events", [])
+        for log in log_events:
+            decoded = log.get("decoded") or {}
+            if decoded.get("name") == "Approval":
+                return True
+        
+        return False
+    
+    def evaluate_wallet_with_entropy(self, wallet_address: str, chain: str = "ethereum") -> Dict[str, Any]:
+        """
+        NEW METHOD: Combine existing score with behavioral entropy
+        This gives a more complete SRS score
+        """
+        # Get basic wallet data (your existing method)
+        basic_data = self.evaluate_wallet_sync(wallet_address, chain)
+        
+        if "error" in basic_data:
+            return basic_data
+        
+        # Get behavioral entropy
+        entropy_data = self.analyze_behavioral_entropy(wallet_address, chain)
+        
+        if "error" in entropy_data:
+            # Fall back to basic score only
+            return basic_data
+        
+        # Combine scores (70% basic + 30% entropy)
+        basic_score = basic_data.get("srs_score", 50)
+        entropy_score = entropy_data["behavioral_entropy"]["normalized_score"]
+        
+        combined_score = (basic_score * 0.7) + (entropy_score * 0.3)
+        
+        return {
+            "wallet": wallet_address,
+            "chain": chain,
+            "srs_score": round(combined_score, 2),
+            "risk_level": self._determine_risk_level(combined_score),
+            "components": {
+                "balance_trust_score": basic_score,
+                "behavioral_entropy_score": round(entropy_score, 2),
+                "weighting": "70% / 30%"
+            },
+            "behavioral_analysis": entropy_data,
+            "basic_wallet_data": basic_data.get("wallet_data"),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
     
     def get_real_wallet_data_sync(self, wallet_address: str, chain: str = "ethereum") -> Dict[str, Any]:
         """Synchronous version to fetch real wallet data"""

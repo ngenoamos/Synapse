@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cathedral Scanner - SRS Blockchain Analytics</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        }
+        .card-hover {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+        }
+        .tab-active {
+            border-bottom: 3px solid #8b5cf6;
+            color: #8b5cf6;
+        }
+        .score-gauge {
+            transition: all 0.5s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- Header -->
+        <div class="text-center mb-8 fade-in">
+            <div class="inline-flex items-center justify-center mb-4">
+                <span class="text-6xl mr-3">🏛️</span>
+                <h1 class="text-5xl font-bold text-white tracking-tight">Cathedral Scanner</h1>
+            </div>
+            <p class="text-lg text-gray-300">Enterprise-Grade Sybil-Resistance Scoring Engine</p>
+        </div>
+
+        <!-- Main Card -->
+        <div class="bg-white rounded-2xl shadow-2xl overflow-hidden fade-in">
+            <!-- Tabs -->
+            <div class="border-b border-gray-200">
+                <div class="flex px-6 pt-4 space-x-8">
+                    <button id="tab-scan" class="tab-btn py-3 px-1 font-semibold text-gray-600 hover:text-purple-600 transition" onclick="switchTab('scan')">
+                        🔍 Quick Scan
+                    </button>
+                    <button id="tab-srs" class="tab-btn py-3 px-1 font-semibold text-gray-600 hover:text-purple-600 transition" onclick="switchTab('srs')">
+                        📊 SRS Analysis
+                    </button>
+                    <button id="tab-entropy" class="tab-btn py-3 px-1 font-semibold text-gray-600 hover:text-purple-600 transition" onclick="switchTab('entropy')">
+                        🧠 Behavioral Entropy
+                    </button>
+                    <button id="tab-top" class="tab-btn py-3 px-1 font-semibold text-gray-600 hover:text-purple-600 transition" onclick="switchTab('top')">
+                        🏆 Top Wallets
+                    </button>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="p-6">
+                <!-- Tab 1: Quick Scan -->
+                <div id="content-scan" class="tab-content">
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Wallet Address</label>
+                            <input type="text" id="scan-wallet" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 font-mono text-sm"
+                                   placeholder="0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8"
+                                   value="0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Blockchain</label>
+                            <select id="scan-chain" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                                <option value="ethereum">Ethereum (ETH)</option>
+                                <option value="bsc">Binance Smart Chain (BNB)</option>
+                            </select>
+                        </div>
+                        <button onclick="performQuickScan()" 
+                                class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-3 rounded-lg hover:opacity-90 transition transform hover:scale-[1.02]">
+                            🚀 Scan Wallet
+                        </button>
+                        <div id="scan-results" class="hidden"></div>
+                        <div id="scan-loading" class="hidden text-center py-8">
+                            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                            <p class="mt-2 text-gray-600">Fetching blockchain data...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Full SRS Analysis -->
+                <div id="content-srs" class="tab-content hidden">
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Wallet Address</label>
+                            <input type="text" id="srs-wallet" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 font-mono text-sm"
+                                   placeholder="0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8"
+                                   value="0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Blockchain</label>
+                            <select id="srs-chain" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                                <option value="ethereum">Ethereum (ETH)</option>
+                                <option value="bsc">Binance Smart Chain (BNB)</option>
+                            </select>
+                        </div>
+                        <button onclick="performFullSRS()" 
+                                class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-3 rounded-lg hover:opacity-90 transition">
+                            📊 Calculate SRS Score
+                        </button>
+                        <div id="srs-results" class="hidden"></div>
+                        <div id="srs-loading" class="hidden text-center py-8">
+                            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                            <p class="mt-2 text-gray-600">Analyzing behavioral patterns...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Entropy Analysis -->
+                <div id="content-entropy" class="tab-content hidden">
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Wallet Address</label>
+                            <input type="text" id="entropy-wallet" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 font-mono text-sm"
+                                   placeholder="0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8"
+                                   value="0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Blockchain</label>
+                            <select id="entropy-chain" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                                <option value="ethereum">Ethereum (ETH)</option>
+                                <option value="bsc">Binance Smart Chain (BNB)</option>
+                            </select>
+                        </div>
+                        <button onclick="performEntropyAnalysis()" 
+                                class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-3 rounded-lg hover:opacity-90 transition">
+                            🧮 Calculate Entropy
+                        </button>
+                        <div id="entropy-results" class="hidden"></div>
+                        <div id="entropy-loading" class="hidden text-center py-8">
+                            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                            <p class="mt-2 text-gray-600">Processing transaction history...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 4: Top Wallets -->
+                <div id="content-top" class="tab-content hidden">
+                    <div class="space-y-6">
+                        <button onclick="loadTopWallets()" 
+                                class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-3 rounded-lg hover:opacity-90 transition">
+                            🏆 Refresh Rankings
+                        </button>
+                        <div id="top-results" class="hidden"></div>
+                        <div id="top-loading" class="hidden text-center py-8">
+                            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                            <p class="mt-2 text-gray-600">Loading top wallets...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-8 text-gray-400 text-sm">
+            <p>Powered by FastAPI · Covalent · Shannon Entropy · SRS v2.0</p>
+            <p class="mt-1">🔒 Real blockchain data · 180-day analysis · Liveness gate (50+ txs)</p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let currentTab = 'scan';
+
+        function switchTab(tab) {
+            currentTab = tab;
+            // Hide all content
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`content-${tab}`).classList.remove('hidden');
+            // Update tab styles
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('tab-active', 'text-purple-600');
+                btn.classList.add('text-gray-600');
+            });
+            const activeBtn = document.getElementById(`tab-${tab}`);
+            activeBtn.classList.add('tab-active', 'text-purple-600');
+            activeBtn.classList.remove('text-gray-600');
+        }
+
+        async function performQuickScan() {
+            const wallet = document.getElementById('scan-wallet').value;
+            const chain = document.getElementById('scan-chain').value;
+            
+            document.getElementById('scan-results').classList.add('hidden');
+            document.getElementById('scan-loading').classList.remove('hidden');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/scan/${wallet}?chain=${chain}`);
+                const data = await response.json();
+                
+                if (data.error) throw new Error(data.error);
+                
+                const balanceKey = chain === 'ethereum' ? 'balance_eth' : 'balance_bnb';
+                const balance = data.wallet_data[balanceKey] || 0;
+                const scoreColor = data.srs_score >= 80 ? 'text-green-600' : (data.srs_score >= 50 ? 'text-yellow-600' : 'text-red-600');
+                const gaugeWidth = (data.srs_score / 100) * 100;
+                
+                document.getElementById('scan-results').innerHTML = `
+                    <div class="mt-6 p-4 bg-gray-50 rounded-lg fade-in">
+                        <div class="text-center mb-4">
+                            <div class="text-4xl font-bold ${scoreColor}">${data.srs_score}/100</div>
+                            <div class="text-sm font-semibold ${scoreColor}">${data.risk_level}</div>
+                            <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                <div class="bg-purple-600 h-2 rounded-full transition-all duration-500" style="width: ${gaugeWidth}%"></div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 text-sm">
+                            <div><strong>💰 Balance:</strong><br>${balance.toLocaleString()} ${chain === 'ethereum' ? 'ETH' : 'BNB'}</div>
+                            <div><strong>💵 USD Value:</strong><br>$${(data.wallet_data.balance_usd || 0).toLocaleString()}</div>
+                            <div><strong>📝 Transactions:</strong><br>${data.wallet_data.transaction_count || 0}</div>
+                            <div><strong>🔧 Contract:</strong><br>${data.wallet_data.is_contract ? 'Yes' : 'No'}</div>
+                        </div>
+                        <div class="mt-3 text-xs text-gray-400 text-center">Scanned: ${new Date(data.timestamp).toLocaleString()}</div>
+                    </div>
+                `;
+                document.getElementById('scan-results').classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('scan-results').innerHTML = `
+                    <div class="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                        <p class="text-red-700 font-semibold">❌ Error</p>
+                        <p class="text-red-600 text-sm">${error.message}</p>
+                    </div>
+                `;
+                document.getElementById('scan-results').classList.remove('hidden');
+            } finally {
+                document.getElementById('scan-loading').classList.add('hidden');
+            }
+        }
+
+        async function performFullSRS() {
+            const wallet = document.getElementById('srs-wallet').value;
+            const chain = document.getElementById('srs-chain').value;
+            
+            document.getElementById('srs-results').classList.add('hidden');
+            document.getElementById('srs-loading').classList.remove('hidden');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/complete-srs/${wallet}?chain=${chain}`);
+                const data = await response.json();
+                
+                if (data.liveness_gate === 'FAILED') {
+                    document.getElementById('srs-results').innerHTML = `
+                        <div class="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p class="text-yellow-700 font-semibold">⚠️ Liveness Gate Failed</p>
+                            <p class="text-yellow-600 text-sm">${data.message}</p>
+                            <p class="text-yellow-500 text-xs mt-2">Qualifying transactions: ${data.qualifying_transactions}/50 required</p>
+                        </div>
+                    `;
+                } else {
+                    const riskColor = data.srs_score >= 80 ? 'text-green-600' : (data.srs_score >= 50 ? 'text-yellow-600' : 'text-red-600');
+                    document.getElementById('srs-results').innerHTML = `
+                        <div class="mt-6 p-4 bg-gray-50 rounded-lg fade-in">
+                            <div class="text-center mb-4">
+                                <div class="text-5xl font-bold ${riskColor}">${data.srs_score}/100</div>
+                                <div class="text-sm font-semibold mt-1">Combined SRS Score</div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-3 text-center mb-4">
+                                <div class="p-3 bg-purple-50 rounded-lg">
+                                    <div class="text-xs text-gray-500">H_timing</div>
+                                    <div class="text-lg font-bold text-purple-600">${data.h_timing}</div>
+                                </div>
+                                <div class="p-3 bg-blue-50 rounded-lg">
+                                    <div class="text-xs text-gray-500">H_gas</div>
+                                    <div class="text-lg font-bold text-blue-600">${data.h_gas}</div>
+                                </div>
+                                <div class="p-3 bg-green-50 rounded-lg">
+                                    <div class="text-xs text-gray-500">H_diversity</div>
+                                    <div class="text-lg font-bold text-green-600">${data.h_diversity}</div>
+                                </div>
+                            </div>
+                            <div class="text-center p-3 bg-indigo-50 rounded-lg">
+                                <div class="text-xs text-gray-500">H_combined</div>
+                                <div class="text-2xl font-bold text-indigo-600">${data.h_combined} bits</div>
+                            </div>
+                            <div class="mt-3 text-xs text-gray-400 text-center">
+                                Weights: Timing 35% | Gas 30% | Diversity 35%
+                            </div>
+                        </div>
+                    `;
+                }
+                document.getElementById('srs-results').classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('srs-results').innerHTML = `<div class="mt-6 p-4 bg-red-50 rounded-lg text-red-700">Error: ${error.message}</div>`;
+                document.getElementById('srs-results').classList.remove('hidden');
+            } finally {
+                document.getElementById('srs-loading').classList.add('hidden');
+            }
+        }
+
+        async function performEntropyAnalysis() {
+            const wallet = document.getElementById('entropy-wallet').value;
+            const chain = document.getElementById('entropy-chain').value;
+            
+            document.getElementById('entropy-results').classList.add('hidden');
+            document.getElementById('entropy-loading').classList.remove('hidden');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/entropy/${wallet}?chain=${chain}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    document.getElementById('entropy-results').innerHTML = `
+                        <div class="mt-6 p-4 bg-yellow-50 rounded-lg">
+                            <p class="text-yellow-700">⚠️ ${data.error}</p>
+                            <p class="text-yellow-600 text-sm">${data.suggestion || ''}</p>
+                        </div>
+                    `;
+                } else {
+                    const entropy = data.behavioral_entropy;
+                    const zoneColor = entropy.zone === 'Grey' ? 'text-yellow-600' : (entropy.zone === 'Human' ? 'text-green-600' : 'text-red-600');
+                    document.getElementById('entropy-results').innerHTML = `
+                        <div class="mt-6 space-y-4 fade-in">
+                            <div class="p-4 bg-gray-50 rounded-lg text-center">
+                                <div class="text-3xl font-bold ${zoneColor}">${entropy.normalized_score}/100</div>
+                                <div class="text-sm font-semibold mt-1">${entropy.zone} Zone</div>
+                                <div class="text-xs text-gray-500 mt-1">${entropy.interpretation}</div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3 text-sm">
+                                <div class="p-3 bg-purple-50 rounded-lg">
+                                    <div class="text-gray-500">Raw Entropy</div>
+                                    <div class="font-bold">${entropy.entropy_bits} bits</div>
+                                </div>
+                                <div class="p-3 bg-purple-50 rounded-lg">
+                                    <div class="text-gray-500">Max Possible</div>
+                                    <div class="font-bold">${entropy.max_possible_bits} bits</div>
+                                </div>
+                            </div>
+                            <div class="p-3 bg-blue-50 rounded-lg">
+                                <div class="text-xs text-gray-500">Qualifying Transactions</div>
+                                <div class="font-bold text-lg">${data.transaction_analysis.qualifying_transactions}</div>
+                            </div>
+                            <div class="text-xs text-gray-400 text-center">${data.period_days} days analyzed</div>
+                        </div>
+                    `;
+                }
+                document.getElementById('entropy-results').classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('entropy-results').innerHTML = `<div class="mt-6 p-4 bg-red-50 rounded-lg text-red-700">Error: ${error.message}</div>`;
+                document.getElementById('entropy-results').classList.remove('hidden');
+            } finally {
+                document.getElementById('entropy-loading').classList.add('hidden');
+            }
+        }
+
+        async function loadTopWallets() {
+            document.getElementById('top-results').classList.add('hidden');
+            document.getElementById('top-loading').classList.remove('hidden');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/top_wallets?limit=10`);
+                const data = await response.json();
+                
+                if (data.top_wallets && data.top_wallets.length > 0) {
+                    let html = '<div class="mt-6 space-y-2 fade-in">';
+                    data.top_wallets.forEach((wallet, index) => {
+                        const medal = index === 0 ? '🥇' : (index === 1 ? '🥈' : (index === 2 ? '🥉' : `${index + 1}`));
+                        const scoreColor = wallet.score >= 80 ? 'text-green-600' : (wallet.score >= 50 ? 'text-yellow-600' : 'text-red-600');
+                        html += `
+                            <div class="p-3 bg-gray-50 rounded-lg flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-xl font-bold w-8">${medal}</span>
+                                    <div>
+                                        <div class="font-mono text-xs">${wallet.address.substring(0, 10)}...${wallet.address.substring(-8)}</div>
+                                        <div class="text-xs text-gray-500">${wallet.chain}</div>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="font-bold ${scoreColor}">${wallet.score}/100</div>
+                                    <div class="text-xs text-gray-500">${wallet.balance.toFixed(2)} ${wallet.chain === 'ethereum' ? 'ETH' : 'BNB'}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    document.getElementById('top-results').innerHTML = html;
+                } else {
+                    document.getElementById('top-results').innerHTML = '<div class="mt-6 p-4 bg-gray-50 rounded-lg text-center">No wallets cached yet. Scan some wallets first!</div>';
+                }
+                document.getElementById('top-results').classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('top-results').innerHTML = `<div class="mt-6 p-4 bg-red-50 rounded-lg text-red-700">Error: ${error.message}</div>`;
+                document.getElementById('top-results').classList.remove('hidden');
+            } finally {
+                document.getElementById('top-loading').classList.add('hidden');
+            }
+        }
+
+        // Enter key support
+        document.getElementById('scan-wallet').addEventListener('keypress', (e) => e.key === 'Enter' && performQuickScan());
+        document.getElementById('srs-wallet').addEventListener('keypress', (e) => e.key === 'Enter' && performFullSRS());
+        document.getElementById('entropy-wallet').addEventListener('keypress', (e) => e.key === 'Enter' && performEntropyAnalysis());
+    </script>
+</body>
+</html>

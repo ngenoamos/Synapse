@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from api.routes import router as api_router
+from pathlib import Path
 
 app = FastAPI(
     title="Cathedral Scanner",
@@ -10,37 +10,53 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS - This fixes your error!
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://ngenoamos.github.io",  # Your GitHub Pages
-        "http://localhost:8080",         # Local development
-        "http://localhost:8000",         # Local API
-        "https://*.railway.app",         # Railway domains
+        "https://ngenoamos.github.io",
+        "http://localhost:8080",
+        "http://localhost:8000",
+        "https://*.railway.app",
+        "https://*.onrender.com",
     ],
     allow_credentials=True,
-    allow_methods=["*"],                 # Allow all HTTP methods
-    allow_headers=["*"],                 # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Include API routes
 app.include_router(api_router, prefix="/api")
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Get the directory where this script is located
+BASE_DIR = Path(__file__).parent
+FRONTEND_DIR = BASE_DIR / "frontend-tailwind" / "src"
 
 @app.get("/")
 async def root():
+    """Serve your Tailwind UI at root"""
+    index_path = FRONTEND_DIR / "index.html"
     try:
-        with open("static/index.html", "r") as f:
-            return HTMLResponse(content=f.read())
+        with open(index_path, "r") as f:
+            content = f.read()
+            # Fix CSS path
+            content = content.replace('./output.css', '/output.css')
+            return HTMLResponse(content=content)
     except FileNotFoundError:
         return {
             "message": "Cathedral Scanner API",
             "version": "1.0.0",
-            "status": "operational"
+            "status": "operational",
+            "frontend_path": str(FRONTEND_DIR)
         }
+
+@app.get("/output.css")
+async def serve_css():
+    """Serve the Tailwind CSS file"""
+    css_path = FRONTEND_DIR / "output.css"
+    if css_path.exists():
+        return FileResponse(css_path, media_type="text/css")
+    return {"error": "CSS file not found"}
 
 @app.get("/health")
 async def health_check():
