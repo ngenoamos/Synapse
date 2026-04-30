@@ -216,58 +216,42 @@ async def get_gas_entropy(
     wallet_address: str,
     chain: str = Query("ethereum", enum=["ethereum", "bsc"])
 ) -> Dict[str, Any]:
-    """Pillar 2: Gas bid entropy (H_gas)"""
+    """Pillar 2: Gas bid entropy (H_gas) using streaming"""
     try:
-        print("=== GAS ENDPOINT DEBUG ===")
-        print(f"Wallet: {wallet_address}, Chain: {chain}")
-        
         from scoring.gas import GasEntropyCalculator
-        print("1. Import successful")
         
-        # Get transactions
-        transactions = srs_engine.get_transaction_history(wallet_address, chain)
-        print(f"2. Got {len(transactions) if transactions else 0} transactions")
+        # Stream directly - no get_transaction_history
+        gas_prices = []
         
-        if not transactions:
-            return {"error": "No transaction history found", "wallet": wallet_address}
-        
-        # Extract gas prices
-        gas_prices = GasEntropyCalculator.extract_gas_prices(transactions)
-        print(f"3. Extracted {len(gas_prices)} gas prices")
+        for page in srs_engine.fetcher.stream_transactions(wallet_address, "eth-mainnet", max_pages=3):
+            for tx in page:
+                gas_price_wei = tx.get("gas_price")
+                if gas_price_wei:
+                    try:
+                        gas_price_gwei = float(gas_price_wei) / 1e9
+                        gas_prices.append(gas_price_gwei)
+                    except:
+                        pass
         
         if len(gas_prices) < 10:
             return {
                 "error": "Insufficient gas data",
                 "samples": len(gas_prices),
                 "minimum_required": 10,
-                "wallet": wallet_address,
-                "chain": chain
+                "wallet": wallet_address
             }
         
-        # Calculate H_gas
-        print("4. Calling get_gas_percentile_buckets...")
         gas_buckets = GasEntropyCalculator.get_gas_percentile_buckets(gas_prices)
-        print(f"5. Got {len(gas_buckets)} buckets")
-        
-        print("6. Calling calculate_h_gas...")
         h_gas = GasEntropyCalculator.calculate_h_gas(gas_buckets)
-        print(f"7. H_gas = {h_gas}")
-        
-        print("8. Calling interpret_h_gas...")
         result = GasEntropyCalculator.interpret_h_gas(h_gas)
-        print("9. Interpretation complete")
         
         result["wallet"] = wallet_address
         result["chain"] = chain
         result["samples"] = len(gas_prices)
         
-        print("=== GAS ENDPOINT SUCCESS ===")
         return result
         
     except Exception as e:
-        print(f"!!! ERROR: {e}")
-        import traceback
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/pillar2/{wallet_address}")
@@ -378,14 +362,40 @@ async def get_full_srs(
         if protocol_gate_active:
             final_score = min(final_score, 40)
         
-        # ========== APPLY TIME DECAY ==========
-        
+        # ========== APPLY TIME DECAY (using streaming) ==========
+
         decay_info = None
         if apply_time_decay:
-            transactions = srs_engine.get_transaction_history(wallet_address, chain)
-            if transactions:
-                decay_info = srs_engine.economic_engine.get_effective_srs(final_score, transactions)
-                final_score = decay_info["effective_srs"]
+            # Stream transactions directly for decay calculation
+            from datetime import datetime, timezone
+            last_tx_time = None
+            tx_count = 0
+            
+            for page in srs_engine.fetcher.stream_transactions(wallet_address, "eth-mainnet", max_pages=3):
+                for tx in page:
+                    tx_count += 1
+                    block_time = tx.get("block_signed_at")
+                    if block_time:
+                        try:
+                            tx_time = datetime.fromisoformat(block_time.replace('Z', '+00:00'))
+                            if tx_time.tzinfo is None:
+                                tx_time = tx_time.replace(tzinfo=timezone.utc)
+                            if last_tx_time is None or tx_time > last_tx_time:
+                                last_tx_time = tx_time
+                        except:
+                            pass
+            
+            if last_tx_time:
+                now = datetime.now(timezone.utc)
+                days_inactive = max(0, (now - last_tx_time).days)
+                import math
+                decay_multiplier = math.exp(-0.005 * days_inactive)
+                final_score *= decay_multiplier
+                decay_info = {
+                    "days_inactive": days_inactive,
+                    "decay_multiplier": round(decay_multiplier, 4),
+                    "effective_srs": round(final_score, 2)
+                }
         
         # ========== DETERMINE RISK LEVEL ==========
         

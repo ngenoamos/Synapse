@@ -55,24 +55,15 @@ class SRSEngine:
     
     def analyze_behavioral_entropy(self, wallet_address: str, chain: str = "ethereum") -> Dict[str, Any]:
         """
-        Calculate Shannon entropy from transaction timing with proper filtering.
+        Calculate Shannon entropy from transaction timing using STREAMING.
         Filters out: self-transfers, zero-value transactions, and token approvals.
-
         Liveness Gate: Minimum 50 qualifying transactions required.
         """
-        # Get transaction history
-        transactions = self.get_transaction_history(wallet_address, chain)
+        from collections import Counter
+        from datetime import datetime
+        import math
         
-        if not transactions:
-            return {
-                "error": "No transaction history found",
-                "wallet": wallet_address,
-                "suggestion": "Try a wallet with more activity",
-                "srs_score": 0,
-                "liveness_gate": "FAILED"
-            }
-        
-        # Extract hours from timestamps with filtering
+        # Streaming processing - no large list!
         hours = []
         total_sent = 0
         total_received = 0
@@ -80,109 +71,87 @@ class SRSEngine:
         filtered_self = 0
         filtered_zero = 0
         filtered_approval = 0
-        
         wallet_lower = wallet_address.lower()
         
-        for tx in transactions:
-            # Get addresses safely
-            from_addr = tx.get("from_address") or ""
-            to_addr = tx.get("to_address") or ""
-            
-            # Convert to lowercase
-            if from_addr:
-                from_addr = from_addr.lower()
-            if to_addr:
-                to_addr = to_addr.lower()
-            
-            # FILTER 1: Skip self-transfers
-            if from_addr == wallet_lower and to_addr == wallet_lower:
-                filtered_self += 1
-                continue
-            
-            # Get transaction value
-            try:
-                value = float(tx.get("value", "0")) / 1e18
-            except:
-                value = 0
-            
-            # FILTER 2: Skip zero-value transactions
-            if value == 0:
-                if self._is_token_approval(tx):
-                    filtered_approval += 1
+        # Stream directly from fetcher
+        for page in self.fetcher.stream_transactions(wallet_address, "eth-mainnet", max_pages=3):
+            for tx in page:
+                # Get addresses safely
+                from_addr = tx.get("from_address") or ""
+                to_addr = tx.get("to_address") or ""
+                
+                if from_addr:
+                    from_addr = from_addr.lower()
+                if to_addr:
+                    to_addr = to_addr.lower()
+                
+                # FILTER 1: Skip self-transfers
+                if from_addr == wallet_lower and to_addr == wallet_lower:
+                    filtered_self += 1
                     continue
-                filtered_zero += 1
-                continue
-            
-            # This is a qualifying transaction
-            qualifying_count += 1
-            
-            # Get timestamp for entropy
-            block_time = tx.get("block_signed_at")
-            if block_time:
+                
+                # Get transaction value
                 try:
-                    dt = datetime.fromisoformat(block_time.replace('Z', '+00:00'))
-                    hours.append(dt.hour)
+                    value = float(tx.get("value", "0")) / 1e18
                 except:
-                    pass
-            
-            # Track sent/received
-            if from_addr == wallet_lower:
-                total_sent += value
-            if to_addr == wallet_lower:
-                total_received += value
+                    value = 0
+                
+                # FILTER 2: Skip zero-value transactions
+                if value == 0:
+                    if self._is_token_approval(tx):
+                        filtered_approval += 1
+                        continue
+                    filtered_zero += 1
+                    continue
+                
+                # This is a qualifying transaction
+                qualifying_count += 1
+                
+                # Get timestamp for entropy
+                block_time = tx.get("block_signed_at")
+                if block_time:
+                    try:
+                        dt = datetime.fromisoformat(block_time.replace('Z', '+00:00'))
+                        hours.append(dt.hour)
+                    except:
+                        pass
+                
+                # Track sent/received
+                if from_addr == wallet_lower:
+                    total_sent += value
+                if to_addr == wallet_lower:
+                    total_received += value
         
         # Debug output
-        print(f"🔍 Transactions: {len(transactions)} total")
+        print(f"🔍 Transactions streamed, qualifying: {qualifying_count}")
         print(f"   ├─ Self-transfers filtered: {filtered_self}")
         print(f"   ├─ Zero-value filtered: {filtered_zero}")
         print(f"   ├─ Token approvals filtered: {filtered_approval}")
         print(f"   └─ Qualifying: {qualifying_count}")
         
-        # LIVENESS GATE: Minimum 50 qualifying transactions (per spec)
+        # LIVENESS GATE: Minimum 50 qualifying transactions
         MIN_QUALIFYING_TXS = 50
         
         if qualifying_count < MIN_QUALIFYING_TXS:
             return {
-                "error": f"Insufficient qualifying transactions. Liveness gate requires {MIN_QUALIFYING_TXS}+ transactions.",
+                "error": f"Insufficient qualifying transactions: {qualifying_count} < {MIN_QUALIFYING_TXS}",
                 "wallet": wallet_address,
                 "chain": chain,
                 "qualifying_transactions": qualifying_count,
                 "minimum_required": MIN_QUALIFYING_TXS,
                 "srs_score": 0,
-                "liveness_gate": "FAILED",
-                "reason": "Wallet does not meet minimum transaction activity threshold",
-                "stats": {
-                    "total_transactions": len(transactions),
-                    "self_transfers": filtered_self,
-                    "zero_value": filtered_zero,
-                    "token_approvals": filtered_approval,
-                    "qualifying": qualifying_count
-                }
+                "liveness_gate": "FAILED"
             }
         
-        # Check if we have qualifying transactions
         if not hours:
-            return {
-                "error": "No qualifying transactions found in the last 180 days",
-                "wallet": wallet_address,
-                "suggestion": "Try a wallet with more activity",
-                "stats": {
-                    "total_transactions": len(transactions),
-                    "self_transfers": filtered_self,
-                    "zero_value": filtered_zero,
-                    "token_approvals": filtered_approval,
-                    "qualifying": 0
-                }
-            }
+            return {"error": "No valid timestamps found", "wallet": wallet_address}
         
-        # Calculate H_timing using EntropyCalculator
+        # Calculate H_timing
         from .entropy import EntropyCalculator
-        from collections import Counter
-        
         h_timing_result = EntropyCalculator.get_h_timing_from_hours(hours)
         hour_counts = Counter(hours)
         
-        # Print hour distribution to console
+        # Print hour distribution
         print("\n📊 Hour Distribution (24 buckets):")
         for hour in range(24):
             count = hour_counts.get(hour, 0)
@@ -196,17 +165,13 @@ class SRSEngine:
             "chain": chain,
             "behavioral_entropy": h_timing_result,
             "transaction_analysis": {
-                "total_transactions_analyzed": len(transactions),
                 "qualifying_transactions": qualifying_count,
                 "filters_applied": {
                     "self_transfers_removed": filtered_self,
                     "zero_value_removed": filtered_zero,
                     "token_approvals_removed": filtered_approval
                 },
-                "hour_distribution": {
-                    str(hour): hour_counts.get(hour, 0) 
-                    for hour in range(24)
-                },
+                "hour_distribution": {str(hour): hour_counts.get(hour, 0) for hour in range(24)},
                 "unique_hours": len(set(hours)),
                 "total_sent_eth": round(total_sent, 6),
                 "total_received_eth": round(total_received, 6),
@@ -222,69 +187,36 @@ class SRSEngine:
         chain: str = "ethereum"
     ) -> Dict[str, Any]:
         """
-        Complete SRS Score with all three pillars.
-        
-        Returns H_timing, H_gas, H_diversity, and H_combined.
-        
-        Liveness Gate: Minimum 50 qualifying transactions required.
-        If liveness gate fails, returns SRS = 0.
+        Complete SRS Score with all three pillars using STREAMING.
+        Uses analyze_behavioral_entropy_complete which already streams.
         """
-        MIN_QUALIFYING_TXS = 50
+        # Use the streaming complete method
+        result = self.analyze_behavioral_entropy_complete(wallet_address, chain)
         
-        # Step 1: Get behavioral entropy (timing)
-        timing_result = self.analyze_behavioral_entropy(wallet_address, chain)
+        # Extract scores
+        h_timing = result.get("h_timing", {}).get("entropy_bits", 0)
+        h_gas = result.get("h_gas", {}).get("entropy_bits", 0)
+        h_diversity = result.get("h_diversity", {}).get("entropy_bits", 0)
         
-        # Check liveness gate
-        if timing_result.get("error") and "Insufficient" in timing_result.get("error", ""):
+        # Get qualifying transactions
+        qualifying_txs = result.get("filters_applied", {}).get("qualifying", 0)
+        
+        weights = {"timing": 0.35, "gas": 0.30, "diversity": 0.35}
+        h_combined = (weights["timing"] * h_timing) + (weights["gas"] * h_gas) + (weights["diversity"] * h_diversity)
+        
+        max_entropy = math.log2(24)
+        srs_score = (h_combined / max_entropy) * 100 if h_combined > 0 else 0
+        srs_score = min(100, max(0, srs_score))
+        
+        # Liveness gate
+        if qualifying_txs < 50:
             return {
                 "wallet": wallet_address,
                 "chain": chain,
                 "srs_score": 0,
-                "h_timing": 0,
-                "h_gas": 0,
-                "h_diversity": 0,
-                "h_combined": 0,
                 "liveness_gate": "FAILED",
-                "message": f"Wallet has insufficient activity. Need {MIN_QUALIFYING_TXS}+ qualifying transactions.",
-                "qualifying_transactions": timing_result.get("qualifying_transactions", 0)
+                "message": f"Insufficient qualifying transactions: {qualifying_txs} < 50"
             }
-        
-        # Get H_timing (extract from timing_result)
-        h_timing = timing_result.get("behavioral_entropy", {}).get("entropy_bits", 0)
-        
-        # Step 2: Calculate H_gas (Pillar 2)
-        from .gas import GasEntropyCalculator
-        
-        # Get transactions for gas calculation
-        transactions = self.get_transaction_history(wallet_address, chain)
-        gas_prices = GasEntropyCalculator.extract_gas_prices(transactions) if transactions else []
-        
-        if len(gas_prices) >= 10:
-            gas_buckets = GasEntropyCalculator.get_gas_percentile_buckets(gas_prices)
-            h_gas = GasEntropyCalculator.calculate_h_gas(gas_buckets)
-        else:
-            h_gas = 0.0
-        
-        # Step 3: Calculate H_diversity (Pillar 3 - placeholder)
-        h_diversity = self._calculate_diversity_entropy(wallet_address, chain) if hasattr(self, '_calculate_diversity_entropy') else 0
-        
-        # Step 4: Calculate combined score
-        weights = {
-            "timing": 0.35,
-            "gas": 0.30,
-            "diversity": 0.35
-        }
-        
-        h_combined = (
-            weights["timing"] * h_timing +
-            weights["gas"] * h_gas +
-            weights["diversity"] * h_diversity
-        )
-        
-        # Normalize H_combined to 0-100 scale for SRS score
-        max_entropy = math.log2(24)  # ~4.585 bits
-        srs_score = (h_combined / max_entropy) * 100 if h_combined > 0 else 0
-        srs_score = min(100, max(0, srs_score))
         
         return {
             "wallet": wallet_address,
@@ -296,12 +228,7 @@ class SRSEngine:
             "h_combined": round(h_combined, 4),
             "weights": weights,
             "liveness_gate": "PASSED",
-            "qualifying_transactions": timing_result.get("transaction_analysis", {}).get("qualifying_transactions", 0),
-            "pillar_status": {
-                "pillar_1_timing": "complete",
-                "pillar_2_gas": "in_progress",
-                "pillar_3_diversity": "pending_implementation"
-            }
+            "qualifying_transactions": qualifying_txs
         }
 
     # Placeholder methods for Pillars 2 and 3
@@ -717,30 +644,32 @@ class SRSEngine:
         return scored_wallets[:limit]
     
     def analyze_pillar_2(self, wallet_address: str, chain: str = "ethereum") -> Dict[str, Any]:
-        """Complete Pillar 2 analysis for Sybil farm detection"""
+        """Pillar 2: Graph clustering using STREAMING - no full transaction storage"""
         
-        # Get transactions
-        transactions = self.get_transaction_history(wallet_address, chain)
-        
-        if not transactions:
-            return {"error": "No transaction history found", "wallet": wallet_address}
-        
-        # Extract counterparties
         counterparties = set()
         wallet_lower = wallet_address.lower()
         
-        for tx in transactions:
-            from_addr = (tx.get("from_address") or "").lower()
-            to_addr = (tx.get("to_address") or "").lower()
-            
-            if from_addr == wallet_lower and to_addr:
-                counterparties.add(to_addr)
-            elif to_addr == wallet_lower and from_addr:
-                counterparties.add(from_addr)
+        # Build list of transactions on the fly (only store minimal data)
+        edge_list = []
+        
+        for page in self.fetcher.stream_transactions(wallet_address, "eth-mainnet", max_pages=3):
+            for tx in page:
+                from_addr = (tx.get("from_address") or "").lower()
+                to_addr = (tx.get("to_address") or "").lower()
+                
+                if from_addr == wallet_lower and to_addr:
+                    counterparties.add(to_addr)
+                    edge_list.append((wallet_lower, to_addr))
+                elif to_addr == wallet_lower and from_addr:
+                    counterparties.add(from_addr)
+                    edge_list.append((wallet_lower, from_addr))
+        
+        # Build graph from edge list (minimal memory)
+        if not edge_list:
+            return {"error": "No counterparties found", "wallet": wallet_address}
         
         # Run Pillar 2 analysis
-        result = self.graph_engine.analyze_pillar_2(wallet_address, transactions, counterparties)
-        
+        result = self.graph_engine.analyze_pillar_2(wallet_address, edge_list, counterparties)
         return result
     
     def check_continuity_violation(self, wallet_address: str, historical_data: Dict, current_data: Dict) -> Dict[str, Any]:
@@ -804,13 +733,49 @@ class SRSEngine:
             }
 
     def analyze_pillar_3(self, wallet_address: str, chain: str = "ethereum") -> Dict[str, Any]:
-        """Pillar 3: Economic Friction Score (EFS)"""
-        transactions = self.get_transaction_history(wallet_address, chain)
+        """Pillar 3: Economic Friction Score using STREAMING"""
         
-        if not transactions:
-            return {"error": "No transaction history found", "wallet": wallet_address}
+        gas_fees_usd = 0.0
+        failed_count = 0
+        success_count = 0
+        eth_price_usd = 3500  # Current ETH price
         
-        return self.economic_engine.get_efs_for_wallet(wallet_address, transactions, chain)
+        for page in self.fetcher.stream_transactions(wallet_address, "eth-mainnet", max_pages=3):
+            for tx in page:
+                # Calculate gas fee
+                gas_used = tx.get("gas_spent", 0)
+                gas_price_wei = tx.get("gas_price", 0)
+                
+                if gas_used and gas_price_wei:
+                    gas_fee_eth = (gas_used * gas_price_wei) / 1e18
+                    gas_fee_usd = gas_fee_eth * eth_price_usd
+                    
+                    if tx.get("successful", True):
+                        gas_fees_usd += gas_fee_usd
+                        success_count += 1
+                    else:
+                        # Failed transactions count 1.5x
+                        gas_fees_usd += gas_fee_usd * 1.5
+                        failed_count += 1
+        
+        # Calculate EFS
+        import math
+        weighted_total = gas_fees_usd
+        efs_raw = math.log10(1 + weighted_total) if weighted_total > 0 else 0
+        efs_normalized = min(1.0, efs_raw / 50)  # Normalize against 95th percentile
+        
+        return {
+            "pillar_3": {
+                "efs_score": round(efs_normalized, 4),
+                "raw_efs": round(efs_raw, 4),
+                "breakdown": {
+                    "gas_fees_usd": round(gas_fees_usd, 2),
+                    "failed_transactions": failed_count,
+                    "successful_transactions": success_count,
+                    "failure_rate": round(failed_count / (success_count + failed_count or 1), 4)
+                }
+            }
+        }
 
     def _determine_risk_level(self, score: float) -> str:
         if score >= 80:
