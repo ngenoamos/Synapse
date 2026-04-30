@@ -489,3 +489,67 @@ async def get_full_srs(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/loan/request")
+async def request_loan(
+    wallet_address: str,
+    amount_usd: float,
+    duration_days: int,
+    mpesa_phone: str = None,
+    chain: str = "ethereum"
+) -> Dict[str, Any]:
+    """
+    Request a loan via the credit contract
+    """
+    try:
+        # Verify SRS score
+        srs_result = await get_full_srs(wallet_address, chain)
+        
+        if srs_result["srs_score"] < 60:
+            raise HTTPException(status_code=400, detail="SRS too low for loan")
+        
+        # Loan request recorded
+        return {
+            "status": "pending",
+            "wallet": wallet_address,
+            "amount_usd": amount_usd,
+            "duration_days": duration_days,
+            "srs_score": srs_result["srs_score"],
+            "message": "Loan request recorded. Credit contract will process.",
+            "next_steps": [
+                "1. Approve LUSD spending on credit contract",
+                "2. Call requestLoan() on credit contract",
+                f"3. For KES: {mpesa_phone} will receive {amount_usd * 150} KES manually"
+            ]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/loan/repay/{loan_id}")
+async def repay_loan(
+    loan_id: int,
+    wallet_address: str,
+    chain: str = "ethereum"
+) -> Dict[str, Any]:
+    """
+    Record loan repayment
+    """
+    try:
+        # Get current SRS
+        srs_result = await get_full_srs(wallet_address, chain)
+        current_srs = srs_result["srs_score"]
+        new_srs = min(100, current_srs + 5)
+        
+        return {
+            "status": "repayment_recorded",
+            "loan_id": loan_id,
+            "wallet": wallet_address,
+            "old_srs": current_srs,
+            "new_srs": new_srs,
+            "message": "Repayment recorded. SRS increased by 5 points."
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -541,6 +541,7 @@ class SRSEngine:
         filtered_stats = {"self_transfer": 0, "dust": 0, "zero_value": 0, "token_approval": 0}
         
         wallet_lower = wallet_address.lower()
+        qualifying_count = 0  # ← ADD THIS LINE
         
         for tx in transactions:
             is_qualifying, reason = TransactionFilter.is_qualifying(tx, wallet_address, chain)
@@ -551,6 +552,7 @@ class SRSEngine:
                 continue
             
             qualifying_txs.append(tx)
+            qualifying_count += 1  # ← ADD THIS LINE
             
             # Extract timestamp info for H_timing
             block_time = tx.get("block_signed_at")
@@ -580,8 +582,12 @@ class SRSEngine:
             elif to_addr == wallet_lower and from_addr:
                 counterparties.add(from_addr)
         
+        # Add total transactions and qualifying count to filtered_stats
+        filtered_stats["total_transactions"] = len(transactions)
+        filtered_stats["qualifying"] = qualifying_count  # ← ADD THIS LINE
+        
         # LIVENESS GATE (HARD - returns error if fails)
-        liveness = LivenessGate.check_liveness(qualifying_txs, STANDARD_WINDOW_DAYS)
+        liveness = LivenessGate.check_liveness(qualifying_txs, STANDARD_WINDOW_DAYS, filtered_stats)
         if not liveness["passed"]:
             return {
                 "error": liveness["reason"],
@@ -620,7 +626,8 @@ class SRSEngine:
         diversity_tracker = DiversityTracker()
         counterparty_data = diversity_tracker.classify_counterparties(counterparties)
         h_diversity_value = diversity_tracker.calculate_h_diversity(counterparty_data)
-        diversity_interpretation = diversity_tracker.interpret_h_diversity(counterparty_data["tier_1_count"])
+        # Store interpretation in a variable (will be used in return)
+        diversity_interpretation = diversity_tracker.interpret_h_diversity(counterparty_data["tier_1_count"])  # ← KEEP THIS
         
         # ========== COMBINED SCORE ==========
         weights = {"timing": 0.35, "gas": 0.30, "diversity": 0.35}
@@ -669,7 +676,7 @@ class SRSEngine:
             "risk_level": risk_level,
             "h_timing": h_timing_result,
             "h_gas": h_gas_result,
-            "h_diversity": diversity_tracker.interpret_h_diversity(counterparty_data["tier_1_count"]),  # ← REPLACE with this
+            "h_diversity": diversity_interpretation,  # ← USE THE VARIABLE
             "combined": {
                 "h_combined": round(h_combined, 4),
                 "weights": weights,
