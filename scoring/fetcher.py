@@ -14,12 +14,16 @@ class CovalentFetcher:
         self.base_url = "https://api.covalenthq.com/v1"
         print(f"🔑 API Key loaded: {self.api_key[:20] if self.api_key else 'NOT FOUND'}...")
     
-    def stream_transactions(self, address: str, chain: str = "eth-mainnet", max_pages: int = 3) -> Generator[List[Dict], None, None]:
+    def stream_transactions(self, address: str, chain: str = "eth-mainnet", max_pages: int = 3, page_size: int = 50) -> Generator[List[Dict], None, None]:
         """
         STREAM transactions page by page - memory efficient!
         Only keeps current page in memory, not all transactions.
         
-        Yields one page of transactions at a time.
+        Args:
+            address: Wallet address
+            chain: Blockchain network (eth-mainnet, bsc-mainnet)
+            max_pages: Maximum number of pages to fetch
+            page_size: Number of transactions per page
         """
         url = f"{self.base_url}/{chain}/address/{address}/transactions_v2/"
         page_number = 0
@@ -29,7 +33,7 @@ class CovalentFetcher:
         while page_number < max_pages:
             params = {
                 "key": self.api_key,
-                "page-size": 50,
+                "page-size": page_size,
                 "page-number": page_number
             }
             
@@ -44,7 +48,7 @@ class CovalentFetcher:
                         break
                     
                     print(f"📡 Page {page_number}: Streaming {len(transactions)} transactions")
-                    yield transactions  # ← Yield instead of accumulate
+                    yield transactions
                     
                     page_number += 1
                 else:
