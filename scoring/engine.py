@@ -52,33 +52,6 @@ class SRSEngine:
             "cached_at": datetime.utcnow().isoformat()
         }
         self._save_cache()
-
-    def get_transaction_history(self, wallet_address: str, chain: str = "ethereum") -> Optional[List[Dict]]:
-        """
-        NEW METHOD: Fetch full transaction history using Covalent
-        This is what you were missing!
-        """
-        # Map chain names to Covalent format
-        chain_map = {
-            "ethereum": "eth-mainnet",
-            "bsc": "bsc-mainnet"
-        }
-        covalent_chain = chain_map.get(chain, "eth-mainnet")
-        
-        # Use your fetcher to get transactions
-        transactions = self.fetcher.get_transactions_last_180_days(wallet_address, covalent_chain)
-        
-        if transactions:
-            # Cache the transaction history
-            cache_key = f"history_{wallet_address}_{chain}"
-            self.cache[cache_key] = {
-                "transactions": transactions,
-                "count": len(transactions),
-                "fetched_at": datetime.utcnow().isoformat()
-            }
-            self._save_cache()
-        
-        return transactions
     
     def analyze_behavioral_entropy(self, wallet_address: str, chain: str = "ethereum") -> Dict[str, Any]:
         """
@@ -530,7 +503,7 @@ class SRSEngine:
         wallet_lower = wallet_address.lower()
         
         # Use streaming to process transactions page by page
-        for page in self.fetcher.stream_transactions(wallet_address, "eth-mainnet"):
+        for page in self.fetcher.stream_transactions(wallet_address, "eth-mainnet", max_pages=3):
             for tx in page:
                 is_qualifying, reason = TransactionFilter.is_qualifying(tx, wallet_address, chain)
                 
