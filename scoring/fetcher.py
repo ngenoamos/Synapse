@@ -1,34 +1,35 @@
 import os
 import requests
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Generator
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
 load_dotenv()
 
 class CovalentFetcher:
-    """Handles all Covalent API data fetching"""
+    """Handles all Covalent API data fetching with memory-efficient streaming"""
     
     def __init__(self):
         self.api_key = os.getenv("COVALENT_API_KEY", "")
         self.base_url = "https://api.covalenthq.com/v1"
         print(f"🔑 API Key loaded: {self.api_key[:20] if self.api_key else 'NOT FOUND'}...")
+    
+    def stream_transactions(self, address: str, chain: str = "eth-mainnet", max_pages: int = 3) -> Generator[List[Dict], None, None]:
+        """
+        STREAM transactions page by page - memory efficient!
+        Only keeps current page in memory, not all transactions.
         
-    def get_transactions_last_180_days(self, address: str, chain: str = "eth-mainnet") -> Optional[List[Dict]]:
+        Yields one page of transactions at a time.
         """
-        Fetch transactions - gets multiple pages to ensure we have recent transactions.
-        """
-        all_transactions = []
+        url = f"{self.base_url}/{chain}/address/{address}/transactions_v2/"
         page_number = 0
-        max_pages = 5  # Get up to 500 transactions
         
-        print(f"📡 Fetching transactions for {address[:10]}... on {chain}")
+        print(f"📡 Streaming transactions for {address[:10]}... on {chain}")
         
         while page_number < max_pages:
-            url = f"{self.base_url}/{chain}/address/{address}/transactions_v2/"
             params = {
                 "key": self.api_key,
-                "page-size": 100,
+                "page-size": 50,
                 "page-number": page_number
             }
             
@@ -42,8 +43,8 @@ class CovalentFetcher:
                     if not transactions:
                         break
                     
-                    all_transactions.extend(transactions)
-                    print(f"📡 Page {page_number}: Got {len(transactions)} transactions (total: {len(all_transactions)})")
+                    print(f"📡 Page {page_number}: Streaming {len(transactions)} transactions")
+                    yield transactions  # ← Yield instead of accumulate
                     
                     page_number += 1
                 else:
@@ -53,11 +54,18 @@ class CovalentFetcher:
             except Exception as e:
                 print(f"❌ Exception: {e}")
                 break
+    
+    def get_transactions_last_180_days(self, address: str, chain: str = "eth-mainnet", max_pages: int = 3) -> Optional[List[Dict]]:
+        """
+        Legacy method - collects all transactions (memory heavier).
+        Use stream_transactions() for memory efficiency.
+        """
+        all_transactions = []
         
-        # Filter by last 180 days - FIX TIMEZONE ISSUE
-        from datetime import timezone, timedelta
+        for page in self.stream_transactions(address, chain, max_pages):
+            all_transactions.extend(page)
         
-        # Make cutoff timezone-aware
+        # Filter by last 180 days
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=180)
         filtered_transactions = []
         
@@ -65,19 +73,16 @@ class CovalentFetcher:
             block_time = tx.get("block_signed_at")
             if block_time:
                 try:
-                    # Parse and make timezone-aware
                     tx_date = datetime.fromisoformat(block_time.replace('Z', '+00:00'))
-                    # Ensure tx_date is timezone-aware
                     if tx_date.tzinfo is None:
                         tx_date = tx_date.replace(tzinfo=timezone.utc)
                     
                     if tx_date > cutoff_date:
                         filtered_transactions.append(tx)
-                except Exception as e:
-                    print(f"⚠️ Error parsing date: {e}")
+                except:
                     pass
         
-        print(f"📡 Final: {len(all_transactions)} total, {len(filtered_transactions)} from last 180 days")
+        print(f"📡 Final: {len(filtered_transactions)} from last 180 days")
         return filtered_transactions
     
     def get_wallet_balance(self, address: str, chain: str = "eth-mainnet") -> Optional[float]:
