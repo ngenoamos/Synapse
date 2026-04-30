@@ -530,7 +530,7 @@ class SRSEngine:
         wallet_lower = wallet_address.lower()
         
         # Use streaming to process transactions page by page
-        for page in self.fetcher.stream_transactions(wallet_address, "eth-mainnet", max_pages=3, page_size=50):
+        for page in self.fetcher.stream_transactions(wallet_address, "eth-mainnet"):
             for tx in page:
                 is_qualifying, reason = TransactionFilter.is_qualifying(tx, wallet_address, chain)
                 
