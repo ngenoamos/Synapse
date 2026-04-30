@@ -230,17 +230,6 @@ class SRSEngine:
             "liveness_gate": "PASSED",
             "qualifying_transactions": qualifying_txs
         }
-
-    # Placeholder methods for Pillars 2 and 3
-    def _calculate_gas_entropy(self, wallet_address: str, chain: str = "ethereum") -> float:
-        """Pillar 2: Gas entropy - to be implemented in Week 3"""
-        # TODO: Implement gas percentile entropy
-        return 0.0
-
-    def _calculate_diversity_entropy(self, wallet_address: str, chain: str = "ethereum") -> float:
-        """Pillar 3: Protocol diversity entropy - to be implemented in Week 3"""
-        # TODO: Implement protocol diversity entropy
-        return 0.0
     
     def _is_token_approval(self, tx: Dict) -> bool:
         """
@@ -643,35 +632,64 @@ class SRSEngine:
         scored_wallets.sort(key=lambda x: x["score"], reverse=True)
         return scored_wallets[:limit]
     
+    # def analyze_pillar_2(self, wallet_address: str, chain: str = "ethereum") -> Dict[str, Any]:
+    #     """Pillar 2: Graph clustering using STREAMING - no full transaction storage"""
+        
+    #     counterparties = set()
+    #     wallet_lower = wallet_address.lower()
+        
+    #     # Build list of transactions on the fly (only store minimal data)
+    #     edge_list = []
+        
+    #     for page in self.fetcher.stream_transactions(wallet_address, "eth-mainnet", max_pages=3):
+    #         for tx in page:
+    #             from_addr = (tx.get("from_address") or "").lower()
+    #             to_addr = (tx.get("to_address") or "").lower()
+                
+    #             if from_addr == wallet_lower and to_addr:
+    #                 counterparties.add(to_addr)
+    #                 edge_list.append((wallet_lower, to_addr))
+    #             elif to_addr == wallet_lower and from_addr:
+    #                 counterparties.add(from_addr)
+    #                 edge_list.append((wallet_lower, from_addr))
+        
+    #     # Build graph from edge list (minimal memory)
+    #     if not edge_list:
+    #         return {"error": "No counterparties found", "wallet": wallet_address}
+        
+    #     # Run Pillar 2 analysis
+    #     result = self.graph_engine.analyze_pillar_2(wallet_address, edge_list, counterparties)
+    #     return result
+
     def analyze_pillar_2(self, wallet_address: str, chain: str = "ethereum") -> Dict[str, Any]:
-        """Pillar 2: Graph clustering using STREAMING - no full transaction storage"""
+        """Pillar 2: Simplified - just external degree"""
         
         counterparties = set()
         wallet_lower = wallet_address.lower()
         
-        # Build list of transactions on the fly (only store minimal data)
-        edge_list = []
-        
-        for page in self.fetcher.stream_transactions(wallet_address, "eth-mainnet", max_pages=3):
+        # Only collect counterparties, no graph
+        for page in self.fetcher.stream_transactions(wallet_address, "eth-mainnet", max_pages=2):
             for tx in page:
                 from_addr = (tx.get("from_address") or "").lower()
                 to_addr = (tx.get("to_address") or "").lower()
                 
                 if from_addr == wallet_lower and to_addr:
                     counterparties.add(to_addr)
-                    edge_list.append((wallet_lower, to_addr))
                 elif to_addr == wallet_lower and from_addr:
                     counterparties.add(from_addr)
-                    edge_list.append((wallet_lower, from_addr))
         
-        # Build graph from edge list (minimal memory)
-        if not edge_list:
-            return {"error": "No counterparties found", "wallet": wallet_address}
+        external_degree = 0
+        for cp in counterparties:
+            if cp in self.graph_engine.tier_1_addresses:
+                external_degree += 1
         
-        # Run Pillar 2 analysis
-        result = self.graph_engine.analyze_pillar_2(wallet_address, edge_list, counterparties)
-        return result
-    
+        return {
+            "pillar_2": {
+                "external_degree": external_degree,
+                "pillar_2_score": 50 if external_degree > 0 else 0
+            }
+        }
+        
     def check_continuity_violation(self, wallet_address: str, historical_data: Dict, current_data: Dict) -> Dict[str, Any]:
         """
         Check if wallet behavior has shifted significantly (potential key sale).
